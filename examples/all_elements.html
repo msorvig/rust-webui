@@ -1,0 +1,157 @@
+<style>
+    body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        max-width: 800px;
+        margin: 40px auto;
+        padding: 0 20px;
+        line-height: 1.6;
+    }
+    h1 {
+        color: #333;
+        border-bottom: 2px solid #007bff;
+        padding-bottom: 10px;
+    }
+    h2 {
+        color: #555;
+        margin-top: 30px;
+    }
+    .section {
+        background: #f8f9fa;
+        padding: 20px;
+        margin: 20px 0;
+        border-radius: 8px;
+        border-left: 4px solid #007bff;
+    }
+    .form-group {
+        margin: 15px 0;
+    }
+    .form-group label {
+        display: block;
+        margin-bottom: 5px;
+        font-weight: 500;
+        color: #555;
+    }
+    ui-button button {
+        background: #007bff;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 16px;
+    }
+    ui-button button:hover {
+        background: #0056b3;
+    }
+    ui-text {
+        display: inline-block;
+        color: #333;
+    }
+    ui-input input {
+        padding: 8px 12px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 14px;
+        width: 300px;
+    }
+    ui-checkbox input {
+        margin-right: 8px;
+    }
+    ui-slider input {
+        width: 300px;
+    }
+    ui-radio {
+        display: block;
+        margin: 8px 0;
+    }
+    ui-radio input {
+        margin-right: 8px;
+    }
+    ui-number input {
+        padding: 8px 12px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 14px;
+        width: 150px;
+    }
+    .status {
+        font-weight: bold;
+        color: #28a745;
+    }
+    .radio-group {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+</style>
+
+<h1>WebUI - All Elements Demo</h1>
+
+<div class="section">
+    <h2>Text Input</h2>
+    <div class="form-group">
+        <label>Enter your name:</label>
+        <ui-input id="name-input"></ui-input>
+    </div>
+    <div class="form-group">
+        <ui-text id="echo"></ui-text>
+    </div>
+</div>
+
+<div class="section">
+    <h2>Checkbox</h2>
+    <div class="form-group">
+        <label>
+            <ui-checkbox id="terms-checkbox"></ui-checkbox>
+            I agree to the terms and conditions
+        </label>
+    </div>
+</div>
+
+<div class="section">
+    <h2>Slider</h2>
+    <div class="form-group">
+        <label>Volume: <ui-text id="slider-value"></ui-text></label>
+        <ui-slider id="volume-slider"></ui-slider>
+    </div>
+</div>
+
+<div class="section">
+    <h2>Radio Buttons</h2>
+    <div class="form-group">
+        <label>Choose an option:</label>
+        <div class="radio-group">
+            <label>
+                <ui-radio id="option-a" name="choice"></ui-radio>
+                Option A
+            </label>
+            <label>
+                <ui-radio id="option-b" name="choice"></ui-radio>
+                Option B
+            </label>
+            <label>
+                <ui-radio id="option-c" name="choice"></ui-radio>
+                Option C
+            </label>
+        </div>
+    </div>
+</div>
+
+<div class="section">
+    <h2>Number Input</h2>
+    <div class="form-group">
+        <label>Quantity:</label>
+        <ui-number id="quantity-input"></ui-number>
+        <ui-text id="quantity-display"></ui-text>
+    </div>
+</div>
+
+<div class="section">
+    <h2>Button & Status</h2>
+    <div class="form-group">
+        <ui-button id="submit-btn"></ui-button>
+    </div>
+    <div class="form-group">
+        Status: <ui-text id="status" class="status"></ui-text>
+    </div>
+</div>

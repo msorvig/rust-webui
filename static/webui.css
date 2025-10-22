@@ -1,0 +1,100 @@
+/**
+ * WebUI - Default styles
+ *
+ * Provides basic styling for WebUI custom elements.
+ * You can override these styles or provide your own CSS.
+ */
+
+/* Button element */
+ui-button {
+    display: inline-block;
+    margin: 5px;
+}
+
+ui-button button {
+    background: #2196f3;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    font-family: inherit;
+    transition: background 0.2s;
+}
+
+ui-button button:hover {
+    background: #1976d2;
+}
+
+ui-button button:active {
+    background: #0d47a1;
+}
+
+ui-button button:focus {
+    outline: 2px solid #64b5f6;
+    outline-offset: 2px;
+}
+
+/* Text element */
+ui-text {
+    display: block;
+    margin: 10px 0;
+    color: #333;
+}
+
+ui-text span {
+    display: inline;
+}
+
+/* Input element */
+ui-input {
+    display: block;
+    margin: 15px 0;
+}
+
+ui-input label {
+    display: block;
+    margin-bottom: 5px;
+    color: #666;
+    font-size: 14px;
+}
+
+ui-input input {
+    width: 100%;
+    max-width: 400px;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+    font-family: inherit;
+    box-sizing: border-box;
+    transition: border-color 0.2s;
+}
+
+ui-input input:focus {
+    outline: none;
+    border-color: #2196f3;
+}
+
+/* Connection status indicator */
+.webui-connection-status {
+    position: fixed;
+    top: 10px;
+    right: 10px;
+    padding: 8px 16px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+    z-index: 1000;
+}
+
+.webui-connection-status.connected {
+    background: #4caf50;
+    color: white;
+}
+
+.webui-connection-status.disconnected {
+    background: #f44336;
+    color: white;
+}
