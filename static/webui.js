@@ -9,13 +9,71 @@
  * 3. The WebUI client will automatically connect and synchronize with the server
  */
 
+// Helper function to get the scope path for an element
+function getElementScopePath(element) {
+    const scopes = [];
+    let current = element.parentElement;
+
+    while (current) {
+        if (current.tagName && current.tagName.toLowerCase() === 'ui-scope') {
+            const scopeName = current.getAttribute('name');
+            if (scopeName) {
+                scopes.unshift(scopeName);
+            }
+        }
+        current = current.parentElement;
+    }
+
+    return scopes.join('.');
+}
+
+// Helper function to build full scoped ID
+function buildScopedId(element, localId) {
+    const scopePath = getElementScopePath(element);
+    if (scopePath) {
+        return `${scopePath}.${localId}`;
+    }
+    return localId;
+}
+
+// Helper function to auto-rewrite an element's ID based on scope
+// Call this at the start of connectedCallback for all UI elements
+function autoRewriteId(element) {
+    if (element.id) {
+        element._originalId = element.id;
+        const scopedId = buildScopedId(element, element.id);
+        if (scopedId !== element.id) {
+            element.id = scopedId;
+        }
+    }
+}
+
 // Custom UI Elements
+
+/**
+ * <ui-scope> - Container for namespacing UI elements
+ *
+ * Attributes:
+ *   name - The scope name (required)
+ *
+ * Elements inside a scope have their IDs automatically prefixed with the scope path.
+ */
+class UiScope extends HTMLElement {
+    constructor() {
+        super();
+    }
+
+    connectedCallback() {
+        // Scope is just a container, no special rendering needed
+        // The magic happens in the child elements
+    }
+}
 
 /**
  * <ui-button> - A clickable button
  *
  * Attributes:
- *   id - Unique identifier (required)
+ *   id - Unique identifier (required, will be auto-scoped)
  *
  * The button text is set by the server via the JSON protocol.
  */
@@ -26,6 +84,8 @@ class UiButton extends HTMLElement {
     }
 
     connectedCallback() {
+        autoRewriteId(this);
+
         this.appendChild(this._button);
         this._button.addEventListener('click', () => {
             this.dispatchEvent(new CustomEvent('ui-click', {
@@ -44,7 +104,7 @@ class UiButton extends HTMLElement {
  * <ui-text> - Read-only text display
  *
  * Attributes:
- *   id - Unique identifier (required)
+ *   id - Unique identifier (required, will be auto-scoped)
  *
  * The text content is set by the server via the JSON protocol.
  */
@@ -55,6 +115,7 @@ class UiText extends HTMLElement {
     }
 
     connectedCallback() {
+        autoRewriteId(this);
         this.appendChild(this._span);
     }
 
@@ -67,7 +128,7 @@ class UiText extends HTMLElement {
  * <ui-input> - Text input field
  *
  * Attributes:
- *   id - Unique identifier (required)
+ *   id - Unique identifier (required, will be auto-scoped)
  *
  * The input value is synchronized between client and server.
  */
@@ -81,6 +142,8 @@ class UiInput extends HTMLElement {
     }
 
     connectedCallback() {
+        autoRewriteId(this);
+
         this.appendChild(this._label);
         this._input.addEventListener('input', () => {
             this.dispatchEvent(new CustomEvent('ui-input', {
@@ -104,7 +167,7 @@ class UiInput extends HTMLElement {
  * <ui-checkbox> - Checkbox input
  *
  * Attributes:
- *   id - Unique identifier (required)
+ *   id - Unique identifier (required, will be auto-scoped)
  *
  * The checked state is synchronized between client and server.
  */
@@ -118,6 +181,8 @@ class UiCheckbox extends HTMLElement {
     }
 
     connectedCallback() {
+        autoRewriteId(this);
+
         this.appendChild(this._label);
         this._input.addEventListener('change', () => {
             this.dispatchEvent(new CustomEvent('ui-change', {
@@ -136,7 +201,7 @@ class UiCheckbox extends HTMLElement {
  * <ui-slider> - Slider (range) input
  *
  * Attributes:
- *   id - Unique identifier (required)
+ *   id - Unique identifier (required, will be auto-scoped)
  *
  * The slider value is synchronized between client and server.
  */
@@ -148,6 +213,8 @@ class UiSlider extends HTMLElement {
     }
 
     connectedCallback() {
+        autoRewriteId(this);
+
         this.appendChild(this._input);
         this._input.addEventListener('change', () => {
             this.dispatchEvent(new CustomEvent('ui-change', {
@@ -171,7 +238,7 @@ class UiSlider extends HTMLElement {
  * <ui-radio> - Radio button input
  *
  * Attributes:
- *   id - Unique identifier (required)
+ *   id - Unique identifier (required, will be auto-scoped)
  *   name - Group name for mutual exclusion (required)
  *
  * The checked state is synchronized between client and server.
@@ -186,6 +253,8 @@ class UiRadio extends HTMLElement {
     }
 
     connectedCallback() {
+        autoRewriteId(this);
+
         this.appendChild(this._label);
         this._input.addEventListener('change', () => {
             this.dispatchEvent(new CustomEvent('ui-change', {
@@ -206,7 +275,7 @@ class UiRadio extends HTMLElement {
  * <ui-number> - Number input field
  *
  * Attributes:
- *   id - Unique identifier (required)
+ *   id - Unique identifier (required, will be auto-scoped)
  *
  * The numeric value is synchronized between client and server.
  */
@@ -218,6 +287,8 @@ class UiNumber extends HTMLElement {
     }
 
     connectedCallback() {
+        autoRewriteId(this);
+
         this.appendChild(this._input);
         this._input.addEventListener('change', () => {
             this.dispatchEvent(new CustomEvent('ui-change', {
@@ -242,6 +313,7 @@ class UiNumber extends HTMLElement {
 }
 
 // Register custom elements
+customElements.define('ui-scope', UiScope);
 customElements.define('ui-button', UiButton);
 customElements.define('ui-text', UiText);
 customElements.define('ui-input', UiInput);

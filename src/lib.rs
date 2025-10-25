@@ -82,6 +82,51 @@
 //!
 //! When the user types, sends an `input` event to the server with the input's ID and value.
 //!
+//! # Scoped Namespacing
+//!
+//! WebUI supports scoped namespacing to prevent ID conflicts. This allows you to use the same
+//! local IDs in different sections of your UI without interference.
+//!
+//! ## `<ui-scope>`
+//!
+//! Container element that creates a namespace for child elements. IDs are automatically rewritten
+//! to include the scope path.
+//!
+//! **Rust Side:**
+//! ```rust
+//! # use webui::{AppState, UiElement};
+//! let state = AppState::new();
+//!
+//! // Create scoped states
+//! let form = state.scope("form");
+//! let modal = state.scope("modal");
+//!
+//! // Both can use the same local ID "btn1"
+//! form.add_element(UiElement::Button {
+//!     id: "btn1".to_string(),  // Stored as "form.btn1"
+//!     text: "Submit".to_string(),
+//!     on_click: None,
+//! });
+//!
+//! modal.add_element(UiElement::Button {
+//!     id: "btn1".to_string(),  // Stored as "modal.btn1"
+//!     text: "Close".to_string(),
+//!     on_click: None,
+//! });
+//! ```
+//!
+//! **HTML Side:**
+//! ```html
+//! <ui-scope name="form">
+//!     <ui-button id="btn1"></ui-button>  <!-- Auto-rewritten to id="form.btn1" -->
+//! </ui-scope>
+//! <ui-scope name="modal">
+//!     <ui-button id="btn1"></ui-button>  <!-- Auto-rewritten to id="modal.btn1" -->
+//! </ui-scope>
+//! ```
+//!
+//! Scopes can be nested: `form.scope("inputs")` creates path "form.inputs".
+//!
 //! # Example
 //!
 //! ```no_run
@@ -366,6 +411,7 @@ impl std::fmt::Debug for UiElement {
 /// The `AppState` is the core of the WebUI framework. It:
 /// - Stores all UI elements by ID (buttons and inputs include their handlers)
 /// - Broadcasts updates to all connected WebSocket clients
+/// - Supports scoped namespacing to prevent ID conflicts
 ///
 /// # Thread Safety
 /// `AppState` is designed to be shared across multiple async tasks and cloned freely.
@@ -374,6 +420,7 @@ impl std::fmt::Debug for UiElement {
 pub struct AppState {
     elements: Arc<Mutex<HashMap<String, UiElement>>>,
     update_tx: broadcast::Sender<ServerMessage>,
+    scope_path: String,
 }
 
 impl AppState {
@@ -390,12 +437,66 @@ impl AppState {
         Self {
             elements: Arc::new(Mutex::new(HashMap::new())),
             update_tx: tx,
+            scope_path: String::new(),
+        }
+    }
+
+    /// Creates a scoped child state with automatic ID prefixing.
+    ///
+    /// Elements added to a scoped state are automatically prefixed with the scope path.
+    /// This prevents ID conflicts when using the same local IDs in different contexts.
+    ///
+    /// # Arguments
+    /// - `name`: The scope name to add to the current path
+    ///
+    /// # Example
+    /// ```
+    /// use webui::{AppState, UiElement};
+    ///
+    /// let state = AppState::new();
+    /// let form_state = state.scope("form");
+    /// let modal_state = state.scope("modal");
+    ///
+    /// // Both use local ID "btn1", but stored as "form.btn1" and "modal.btn1"
+    /// form_state.add_element(UiElement::Button {
+    ///     id: "btn1".to_string(),
+    ///     text: "Submit Form".to_string(),
+    ///     on_click: None,
+    /// });
+    ///
+    /// modal_state.add_element(UiElement::Button {
+    ///     id: "btn1".to_string(),
+    ///     text: "Close Modal".to_string(),
+    ///     on_click: None,
+    /// });
+    /// ```
+    pub fn scope(&self, name: &str) -> Self {
+        let new_path = if self.scope_path.is_empty() {
+            name.to_string()
+        } else {
+            format!("{}.{}", self.scope_path, name)
+        };
+
+        Self {
+            elements: self.elements.clone(),
+            update_tx: self.update_tx.clone(),
+            scope_path: new_path,
+        }
+    }
+
+    /// Builds a full ID by prepending the scope path.
+    fn full_id(&self, local_id: &str) -> String {
+        if self.scope_path.is_empty() {
+            local_id.to_string()
+        } else {
+            format!("{}.{}", self.scope_path, local_id)
         }
     }
 
     /// Adds a UI element to the application.
     ///
-    /// If an element with the same ID already exists, it will be replaced.
+    /// The element's ID is automatically prefixed with the current scope path.
+    /// If an element with the same full ID already exists, it will be replaced.
     ///
     /// # Example
     /// ```
@@ -407,9 +508,17 @@ impl AppState {
     ///     text: "Click Me!".to_string(),
     ///     on_click: None,
     /// });
+    ///
+    /// // Using scopes to avoid ID conflicts
+    /// let form = state.scope("form");
+    /// form.add_element(UiElement::Button {
+    ///     id: "btn1".to_string(),  // Stored as "form.btn1"
+    ///     text: "Submit".to_string(),
+    ///     on_click: None,
+    /// });
     /// ```
     pub fn add_element(&self, element: UiElement) {
-        let id = match &element {
+        let local_id = match &element {
             UiElement::Button { id, .. } => id.clone(),
             UiElement::Text { id, .. } => id.clone(),
             UiElement::Input { id, .. } => id.clone(),
@@ -418,10 +527,13 @@ impl AppState {
             UiElement::Radio { id, .. } => id.clone(),
             UiElement::NumberInput { id, .. } => id.clone(),
         };
-        self.elements.lock().unwrap().insert(id, element);
+        let full_id = self.full_id(&local_id);
+        self.elements.lock().unwrap().insert(full_id, element);
     }
 
     /// Updates an existing element and broadcasts the change to all connected clients.
+    ///
+    /// The local ID is automatically prefixed with the current scope path.
     ///
     /// # Example
     /// ```
@@ -434,12 +546,70 @@ impl AppState {
     ///         text: "Updated!".to_string(),
     ///     },
     /// );
+    ///
+    /// // With scopes
+    /// let form = state.scope("form");
+    /// form.update_element(
+    ///     "status",  // Updates "form.status"
+    ///     UiElement::Text {
+    ///         id: "status".to_string(),
+    ///         text: "Form submitted!".to_string(),
+    ///     },
+    /// );
     /// ```
     pub fn update_element(&self, id: &str, element: UiElement) {
-        self.elements.lock().unwrap().insert(id.to_string(), element.clone());
+        let full_id = self.full_id(id);
+        self.elements.lock().unwrap().insert(full_id.clone(), element.clone());
+
+        // Rewrite element ID to full scoped ID for consistency
+        let element_with_full_id = match element {
+            UiElement::Button { text, on_click, .. } => UiElement::Button {
+                id: full_id.clone(),
+                text,
+                on_click,
+            },
+            UiElement::Text { text, .. } => UiElement::Text {
+                id: full_id.clone(),
+                text,
+            },
+            UiElement::Input { value, on_input, .. } => UiElement::Input {
+                id: full_id.clone(),
+                value,
+                on_input,
+            },
+            UiElement::Checkbox { checked, on_change, .. } => UiElement::Checkbox {
+                id: full_id.clone(),
+                checked,
+                on_change,
+            },
+            UiElement::Slider { value, min, max, step, on_change, .. } => UiElement::Slider {
+                id: full_id.clone(),
+                value,
+                min,
+                max,
+                step,
+                on_change,
+            },
+            UiElement::Radio { name, value, checked, on_change, .. } => UiElement::Radio {
+                id: full_id.clone(),
+                name,
+                value,
+                checked,
+                on_change,
+            },
+            UiElement::NumberInput { value, min, max, step, on_change, .. } => UiElement::NumberInput {
+                id: full_id.clone(),
+                value,
+                min,
+                max,
+                step,
+                on_change,
+            },
+        };
+
         let _ = self.update_tx.send(ServerMessage::Update {
-            id: id.to_string(),
-            element,
+            id: full_id,
+            element: element_with_full_id,
         });
     }
 
@@ -448,6 +618,65 @@ impl AppState {
     /// Returns a vector of cloned elements. Used internally when initializing new clients.
     pub fn get_all_elements(&self) -> Vec<UiElement> {
         self.elements.lock().unwrap().values().cloned().collect()
+    }
+
+    /// Gets all UI elements with their full scoped IDs for sending to clients.
+    ///
+    /// Returns elements with IDs rewritten to include scope paths,
+    /// matching what the client-side JavaScript has after auto-rewriting.
+    fn get_all_elements_for_client(&self) -> Vec<UiElement> {
+        self.elements
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|(full_id, element)| {
+                // Clone the element and rewrite its ID to the full scoped ID
+                match element {
+                    UiElement::Button { text, on_click, .. } => UiElement::Button {
+                        id: full_id.clone(),
+                        text: text.clone(),
+                        on_click: on_click.clone(),
+                    },
+                    UiElement::Text { text, .. } => UiElement::Text {
+                        id: full_id.clone(),
+                        text: text.clone(),
+                    },
+                    UiElement::Input { value, on_input, .. } => UiElement::Input {
+                        id: full_id.clone(),
+                        value: value.clone(),
+                        on_input: on_input.clone(),
+                    },
+                    UiElement::Checkbox { checked, on_change, .. } => UiElement::Checkbox {
+                        id: full_id.clone(),
+                        checked: *checked,
+                        on_change: on_change.clone(),
+                    },
+                    UiElement::Slider { value, min, max, step, on_change, .. } => UiElement::Slider {
+                        id: full_id.clone(),
+                        value: *value,
+                        min: *min,
+                        max: *max,
+                        step: *step,
+                        on_change: on_change.clone(),
+                    },
+                    UiElement::Radio { name, value, checked, on_change, .. } => UiElement::Radio {
+                        id: full_id.clone(),
+                        name: name.clone(),
+                        value: value.clone(),
+                        checked: *checked,
+                        on_change: on_change.clone(),
+                    },
+                    UiElement::NumberInput { value, min, max, step, on_change, .. } => UiElement::NumberInput {
+                        id: full_id.clone(),
+                        value: *value,
+                        min: *min,
+                        max: *max,
+                        step: *step,
+                        on_change: on_change.clone(),
+                    },
+                }
+            })
+            .collect()
     }
 
     fn handle_click(&self, id: &str) {
@@ -537,7 +766,7 @@ async fn websocket(stream: WebSocket, state: AppState) {
 
     // Send initial UI state
     let init_msg = ServerMessage::Init {
-        elements: state.get_all_elements(),
+        elements: state.get_all_elements_for_client(),
     };
     let json = serde_json::to_string(&init_msg).unwrap();
     if sender.send(Message::Text(json)).await.is_err() {
@@ -752,6 +981,87 @@ mod tests {
 
         let elements = state.get_all_elements();
         assert_eq!(elements.len(), 1);
+    }
+
+    #[test]
+    fn test_scoped_states() {
+        let state = AppState::new();
+
+        // Create scoped states
+        let form_state = state.scope("form");
+        let modal_state = state.scope("modal");
+
+        // Add elements with the same local ID to different scopes
+        form_state.add_element(UiElement::Button {
+            id: "btn1".to_string(),
+            text: "Form Button".to_string(),
+            on_click: None,
+        });
+
+        modal_state.add_element(UiElement::Button {
+            id: "btn1".to_string(),
+            text: "Modal Button".to_string(),
+            on_click: None,
+        });
+
+        // Both elements should exist with different full IDs
+        let elements = state.get_all_elements();
+        assert_eq!(elements.len(), 2, "Should have 2 elements with scoped IDs");
+
+        // Verify they're stored with full paths
+        let element_map = state.elements.lock().unwrap();
+        assert!(element_map.contains_key("form.btn1"), "Should contain form.btn1");
+        assert!(element_map.contains_key("modal.btn1"), "Should contain modal.btn1");
+    }
+
+    #[test]
+    fn test_nested_scopes() {
+        let state = AppState::new();
+
+        // Create nested scopes
+        let form_state = state.scope("form");
+        let inputs_state = form_state.scope("inputs");
+
+        // Add element in nested scope
+        inputs_state.add_element(UiElement::Input {
+            id: "name".to_string(),
+            value: "".to_string(),
+            on_input: None,
+        });
+
+        // Should be stored with full nested path
+        let element_map = state.elements.lock().unwrap();
+        assert!(element_map.contains_key("form.inputs.name"),
+            "Should contain form.inputs.name");
+    }
+
+    #[test]
+    fn test_scope_update_element() {
+        let state = AppState::new();
+        let form_state = state.scope("form");
+
+        // Add an element
+        form_state.add_element(UiElement::Text {
+            id: "status".to_string(),
+            text: "Initial".to_string(),
+        });
+
+        // Update using scoped state
+        form_state.update_element(
+            "status",
+            UiElement::Text {
+                id: "status".to_string(),
+                text: "Updated".to_string(),
+            },
+        );
+
+        // Verify it's stored with full path
+        let element_map = state.elements.lock().unwrap();
+        if let Some(UiElement::Text { text, .. }) = element_map.get("form.status") {
+            assert_eq!(text, "Updated");
+        } else {
+            panic!("Element form.status not found or has wrong type");
+        }
     }
 
     // Test helper: Start a web server on a random port and wait for it to be ready
@@ -1033,5 +1343,67 @@ mod tests {
         let final_value = *number_value.lock().unwrap();
         assert!(final_value > 0.0, "Number input change handler was not called");
         assert!((final_value - 42.0).abs() < 0.01, "Number input received incorrect value: expected 42, got {}", final_value);
+    }
+
+    #[tokio::test]
+    async fn test_scoped_buttons_e2e() {
+        let state = AppState::new();
+
+        // Create two scoped states with identical local IDs
+        let form_state = state.scope("form");
+        let modal_state = state.scope("modal");
+
+        // Track which button was clicked
+        let form_clicked = Arc::new(Mutex::new(false));
+        let modal_clicked = Arc::new(Mutex::new(false));
+
+        let form_clicked_clone = form_clicked.clone();
+        form_state.add_element(UiElement::Button {
+            id: "btn1".to_string(),
+            text: "Form Button".to_string(),
+            on_click: Some(Arc::new(Box::new(move || {
+                *form_clicked_clone.lock().unwrap() = true;
+            }))),
+        });
+
+        let modal_clicked_clone = modal_clicked.clone();
+        modal_state.add_element(UiElement::Button {
+            id: "btn1".to_string(),
+            text: "Modal Button".to_string(),
+            on_click: Some(Arc::new(Box::new(move || {
+                *modal_clicked_clone.lock().unwrap() = true;
+            }))),
+        });
+
+        // HTML with scoped elements - both have local ID "btn1"
+        let html = r#"
+            <ui-scope name="form">
+                <ui-button id="btn1"></ui-button>
+            </ui-scope>
+            <ui-scope name="modal">
+                <ui-button id="btn1"></ui-button>
+            </ui-scope>
+        "#;
+
+        let port = start_test_server(state, html, "Scoped Buttons Test").await;
+        let url = format!("http://127.0.0.1:{}", port);
+
+        let (_browser, tab) = create_browser_and_navigate(&url).await;
+
+        // Click the form button (which should have been rewritten to id="form.btn1")
+        tokio::task::spawn_blocking(move || {
+            let button = tab.wait_for_element("ui-button#form\\.btn1")
+                .expect("Failed to find form button with scoped ID");
+            button.click().expect("Failed to click form button");
+        })
+        .await
+        .expect("Form click task panicked");
+
+        // Wait for click event to propagate
+        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+
+        // Verify only the form button was clicked
+        assert!(*form_clicked.lock().unwrap(), "Form button handler was not called");
+        assert!(!*modal_clicked.lock().unwrap(), "Modal button handler should not have been called");
     }
 }
