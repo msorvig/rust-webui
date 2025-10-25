@@ -11,7 +11,7 @@
 //! Then open http://127.0.0.1:3000 in your browser
 
 use std::sync::Arc;
-use webui::{AppState, UiElement, RouterConfig, create_router};
+use webui::{AppState, UiElement, start_server};
 
 #[tokio::main]
 async fn main() {
@@ -84,19 +84,8 @@ async fn main() {
     // Load from external file for better editing experience
     let html = include_str!("basic.html");
 
-    // Create the router with HTML layout
-    let config = RouterConfig::new(state.clone(), html)
-        .title("WebUI Basic Example");
-
-    let app = create_router(config);
-
-    // Bind to localhost:3000
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:3000")
+    // Start the server using the convenient helper function
+    start_server(state, html, "WebUI Basic Example", "127.0.0.1:3000")
         .await
         .unwrap();
-
-    println!("Server running on http://127.0.0.1:3000");
-
-    // Run the server
-    axum::serve(listener, app).await.unwrap();
 }
