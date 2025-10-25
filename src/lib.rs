@@ -769,7 +769,7 @@ async fn websocket(stream: WebSocket, state: AppState) {
         elements: state.get_all_elements_for_client(),
     };
     let json = serde_json::to_string(&init_msg).unwrap();
-    if sender.send(Message::Text(json)).await.is_err() {
+    if sender.send(Message::Text(json.into())).await.is_err() {
         return;
     }
 
@@ -780,7 +780,7 @@ async fn websocket(stream: WebSocket, state: AppState) {
     let mut send_task = tokio::spawn(async move {
         while let Ok(msg) = update_rx.recv().await {
             let json = serde_json::to_string(&msg).unwrap();
-            if sender.send(Message::Text(json)).await.is_err() {
+            if sender.send(Message::Text(json.into())).await.is_err() {
                 break;
             }
         }
